@@ -32,6 +32,7 @@ import (
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/typeurl/v2"
 	"github.com/urfave/cli"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 // Command is the cli command for managing containers
@@ -157,7 +158,6 @@ var deleteCommand = cli.Command{
 		},
 	},
 	Action: func(context *cli.Context) error {
-		var exitErr error
 		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
@@ -171,15 +171,15 @@ var deleteCommand = cli.Command{
 		if context.NArg() == 0 {
 			return fmt.Errorf("must specify at least one container to delete: %w", errdefs.ErrInvalidArgument)
 		}
+
+		errs := []error{}
 		for _, arg := range context.Args() {
 			if err := deleteContainer(ctx, client, arg, deleteOpts...); err != nil {
-				if exitErr == nil {
-					exitErr = err
-				}
+				errs = append(errs, err)
 				log.G(ctx).WithError(err).Errorf("failed to delete container %q", arg)
 			}
 		}
-		return exitErr
+		return utilerrors.NewAggregate(errs)
 	},
 }
 
